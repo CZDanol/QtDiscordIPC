@@ -6,8 +6,8 @@ API documentation: https://discord.com/developers/docs/topics/rpc
 Uses OAuth authentication. After authentized, stores the auth data in discordOauth.json so that the app doesn't have to authentize each time (TODO: auth renewal, it kinda screws up currently).
 
 ## Requirements
-Tested on MSVC 2019 x64, Qt 6.2.1, C++17.
 Requires Qt Core and Network.
+Tested on MSVC 2019 x64, Qt 6.2.1, C++17.
 
 ## Usage
 The API is blocking, so everything's quite simple. Just beware that it might run QEventLoop locally for the blocking operations.
