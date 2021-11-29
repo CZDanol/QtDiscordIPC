@@ -6,6 +6,7 @@ API documentation: https://discord.com/developers/docs/topics/rpc
 
 ## Requirements
 Tested on MSVC 2019 x64, Qt 6.2.1, C++17.
+Requires Qt Core and Network.
 
 ## Usage
 The API is blocking, so everything's quite simple. Just beware that it might run QEventLoop locally for the blocking operations.
