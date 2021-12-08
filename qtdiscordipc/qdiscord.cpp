@@ -26,6 +26,10 @@ QDiscord::QDiscord() {
 	QObject::connect(&socket_, &QLocalSocket::disconnected, this, [this] {
 		disconnect();
 	});
+	QObject::connect(&socket_, &QLocalSocket::readyRead, this, [this] {
+		if(!blockingRead_)
+			processMessage(readMessage());
+	});
 }
 
 bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
@@ -43,12 +47,15 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 		// Handshake and dispatch Receive DISPATCH
 		{
+			blockingRead_++;
 			sendMessage(QJsonObject{
 				{"v",         1},
 				{"client_id", clientID},
 			}, 0);
 
 			const QJsonObject msg = readMessage();
+			blockingRead_--;
+
 			if(msg["cmd"] != "DISPATCH") {
 				qWarning() << "QDiscord - unexpected message (expected DISPATCH)" << msg["cmd"];
 				return false;
@@ -62,6 +69,16 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 			oauthData = QJsonDocument::fromJson(oauthFile.readAll()).object();
 			oauthFile.close();
 		}
+
+		const auto saveOauthData = [&] {
+			oauthFile.open(QIODevice::WriteOnly);
+			oauthFile.write(QJsonDocument(oauthData).toJson(QJsonDocument::Compact));
+			oauthFile.close();
+		};
+
+		const auto loadIdentityFromAuth = [&](const QJsonObject &msg) {
+			userID_ = msg["data"]["user"]["id"].toString();
+		};
 
 		// Try refreshing token
 		if(!oauthData["refresh_token"].isNull()) {
@@ -90,6 +107,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 			if(r->error() == QNetworkReply::NoError) {
 				qDebug() << "Successfully refreshed token";
 				oauthData = QJsonDocument::fromJson(r->readAll()).object();
+				saveOauthData();
 			}
 			else
 				qWarning() << "QDiscord Network error (refresh)" << r->errorString();
@@ -103,13 +121,16 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 			if(msg["cmd"] == "AUTHENTICATE") {
 				qDebug() << "Connected through pre-stored token";
-				userID_ = msg["data"]["user"]["id"].toString();
+				loadIdentityFromAuth(msg);
 				return true;
 			}
 		}
 
+		// When we got here, it mens that the automatic authentication on background failed -> start from scratch
+		oauthData = {};
+
 		// Send authorization request
-		if(oauthData["access_token"].isNull()) {
+		{
 			// Authorize in Discord
 			QString authCode;
 			{
@@ -163,11 +184,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 				return false;
 			}
 
-			{
-				oauthFile.open(QIODevice::WriteOnly);
-				oauthFile.write(QJsonDocument(oauthData).toJson(QJsonDocument::Compact));
-				oauthFile.close();
-			}
+			saveOauthData();
 		}
 
 		// Authenticate
@@ -181,7 +198,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 				return false;
 			}
 
-			userID_ = msg["data"]["user"]["id"].toString();
+			loadIdentityFromAuth(msg);
 		}
 
 		qDebug() << "Connection successful";
@@ -192,49 +209,81 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 		disconnect();
 
 	isConnected_ = r;
+
+	if(isConnected_) {
+		emit connected();
+	}
+
 	return r;
 }
 
 void QDiscord::disconnect() {
+	const bool wasConnected = isConnected_;
+
 	socket_.disconnectFromServer();
 	isConnected_ = false;
 	userID_.clear();
+
+	if(wasConnected)
+		emit disconnected();
 }
 
-QJsonObject QDiscord::sendCommand(const QString &command, const QJsonObject &args) {
+QJsonObject QDiscord::sendCommand(const QString &command, const QJsonObject &args, const QJsonObject &msgOverrides) {
+	if(blockingRead_) {
+		qWarning() << "readMessage while blockingRead";
+		throw;
+	}
+	blockingRead_++;
+
+	const QString nonce = QStringLiteral("%1:%2").arg(QString::number(nonceCounter_++), QString::number(QRandomGenerator64::global()->generate()));
 	QJsonObject message{
 		{"cmd",   command},
 		{"args",  args},
-		{"nonce", QString::number(QRandomGenerator64::global()->generate())}
+		{"nonce", nonce}
 	};
+
+	for(auto it = msgOverrides.begin(), end = msgOverrides.end(); it != end; it++)
+		message[it.key()] = it.value();
+
 	sendMessage(message);
 
-	return readMessage();
+	const auto result = readMessage(nonce);
+	blockingRead_--;
+
+	return std::move(result);
 }
 
-QJsonObject QDiscord::readMessage() {
-	const QByteArray headerBA = blockingReadBytes(sizeof(MessageHeader));
-	if(headerBA.isNull())
-		return {};
+QJsonObject QDiscord::readMessage(const QString &nonce) {
+	while(true) {
+		const QByteArray headerBA = blockingReadBytes(sizeof(MessageHeader));
+		if(headerBA.isNull())
+			return {};
 
-	const MessageHeader &header = *reinterpret_cast<const MessageHeader *>(headerBA.data());
+		const MessageHeader &header = *reinterpret_cast<const MessageHeader *>(headerBA.data());
 
-	const QByteArray data = blockingReadBytes(static_cast<int>(header.length));
+		const QByteArray data = blockingReadBytes(static_cast<int>(header.length));
 
-	QJsonParseError err;
-	QJsonObject result = QJsonDocument::fromJson(data, &err).object();
+		QJsonParseError err;
+		QJsonObject result = QJsonDocument::fromJson(data, &err).object();
 
-	if(err.error != QJsonParseError::NoError)
-		qWarning() << "QDiscord - failed to parse message\n\n" << data;
+		if(err.error != QJsonParseError::NoError)
+			qWarning() << "QDiscord - failed to parse message\n\n" << data;
 
-	result["opcode"] = static_cast<int>(header.opcode);
+		result["opcode"] = static_cast<int>(header.opcode);
 
-	qDebug() << "<<<<< RECV\n" << result << "\n";
+		qDebug() << "<<<<< RECV\n" << result << "\n";
 
-	if(result["evt"] == "ERROR")
-		return {};
+		// If the nonce does not match, process the message instead
+		if(!nonce.isEmpty() && result["nonce"] != nonce) {
+			processMessage(result);
+			continue;
+		}
 
-	return result;
+		if(result["evt"] == "ERROR")
+			return {};
+
+		return result;
+	}
 }
 
 void QDiscord::sendMessage(const QJsonObject &packet, int opCode) {
@@ -247,6 +296,11 @@ void QDiscord::sendMessage(const QJsonObject &packet, int opCode) {
 	header.length = static_cast<uint32_t>(payload.length());
 
 	socket_.write(QByteArray::fromRawData(reinterpret_cast<const char *>(&header), sizeof(MessageHeader)) + payload);
+}
+
+void QDiscord::processMessage(const QJsonObject &msg) {
+	// Delay the event sending so that we don't start processing it for example in the middle of sendCommand
+	QTimer::singleShot(0, this, [this, msg] { emit messageReceived(msg); });
 }
 
 QByteArray QDiscord::blockingReadBytes(int bytes) {

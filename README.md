@@ -18,8 +18,3 @@ The API is blocking, so everything's quite simple. Just beware that it might run
 1. Create an app on the Discord Developer Portal.
 2. Set the redirect URI to `http://localhost:1337/callback`
 3. Copy Client ID and Client Secret from the Oauth2 tab on the portal and give it to the application.
-
-## TODO
-* Receive message that was not expected as a command response signal
-	* In sendCommand, check receiving command nonce, if does not match, signal it as a standalone message
-	* Also connect to readyRead and read data if not blocking waiting for a message
