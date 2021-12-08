@@ -27,8 +27,7 @@ QDiscord::QDiscord() {
 		disconnect();
 	});
 	QObject::connect(&socket_, &QLocalSocket::readyRead, this, [this] {
-		while(!blockingRead_ && socket_.bytesAvailable())
-			processMessage(readMessage());
+		readAndProcessMessages();
 	});
 }
 
@@ -282,6 +281,9 @@ QJsonObject QDiscord::readMessage(const QString &nonce) {
 		if(result["evt"] == "ERROR")
 			return {};
 
+
+		// If there are any further messages to be read, read them
+		readAndProcessMessages();
 		return result;
 	}
 }
@@ -312,4 +314,9 @@ QByteArray QDiscord::blockingReadBytes(int bytes) {
 	}
 
 	return socket_.read(bytes);
+}
+
+void QDiscord::readAndProcessMessages() {
+	while(!blockingRead_ && socket_.bytesAvailable())
+		processMessage(readMessage());
 }

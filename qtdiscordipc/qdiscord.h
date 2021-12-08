@@ -62,6 +62,9 @@ private:
 	/// Blocking waits until given amount of bytes is available
 	QByteArray blockingReadBytes(int bytes);
 
+	/// Non-blocking processes received messsages
+	void readAndProcessMessages();
+
 private:
 	QLocalSocket socket_;
 	bool isConnected_ = false;
