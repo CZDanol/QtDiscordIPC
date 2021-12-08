@@ -27,7 +27,7 @@ QDiscord::QDiscord() {
 		disconnect();
 	});
 	QObject::connect(&socket_, &QLocalSocket::readyRead, this, [this] {
-		if(!blockingRead_)
+		while(!blockingRead_ && socket_.bytesAvailable())
 			processMessage(readMessage());
 	});
 }
