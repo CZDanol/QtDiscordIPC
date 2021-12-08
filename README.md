@@ -20,8 +20,6 @@ The API is blocking, so everything's quite simple. Just beware that it might run
 3. Copy Client ID and Client Secret from the Oauth2 tab on the portal and give it to the application.
 
 ## TODO
-* Auth key renewal on background
-* If oauth json file is invalid but exists, it screws up and does not work (check oauth validity, first locally, then against discord, then eventually reauth)
 * Receive message that was not expected as a command response signal
 	* In sendCommand, check receiving command nonce, if does not match, signal it as a standalone message
 	* Also connect to readyRead and read data if not blocking waiting for a message

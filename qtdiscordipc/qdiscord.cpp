@@ -63,28 +63,16 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 			oauthFile.close();
 		}
 
-		// Send authorization request
-		if(oauthData["access_token"].isNull()) {
-			const QJsonObject msg = sendCommand("AUTHORIZE", QJsonObject{
-				{"client_id", clientID},
-				{"scopes",    QJsonArray::fromStringList(scopes)}
-			});
-
-			if(msg["cmd"] != "AUTHORIZE") {
-				qWarning() << "Authorize - unexpected result" << msg;
-				return false;
-			}
-
-			const QString authCode = msg["data"].toObject()["code"].toString();
-
+		// Try refreshing token
+		if(!oauthData["refresh_token"].isNull()) {
 			QNetworkAccessManager nm;
 			QNetworkRequest req;
 			const QUrlQuery q{
 				{"client_id",     clientID},
 				{"client_secret", clientSecret},
-				{"code",          authCode},
+				{"refresh_token", oauthData["refresh_token"].toString()},
 				{"scope",         scopes.join(' ')},
-				{"grant_type",    "authorization_code"},
+				{"grant_type",    "refresh_token"},
 			};
 			QUrl url("https://discord.com/api/oauth2/token");
 			req.setUrl(url);
@@ -94,17 +82,82 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 			QEventLoop l;
 			QObject::connect(r, &QNetworkReply::finished, &l, &QEventLoop::quit);
 
-			qDebug() << "AUTH REQ" << req.url() << q.toString();
+			qDebug() << "REFRESH REQ" << req.url() << q.toString();
 
 			l.exec();
 			r->deleteLater();
 
-			if(r->error() != QNetworkReply::NoError) {
-				qWarning() << "QDiscord Network error" << r->errorString();
-				return false;
+			if(r->error() == QNetworkReply::NoError) {
+				qDebug() << "Successfully refreshed token";
+				oauthData = QJsonDocument::fromJson(r->readAll()).object();
+			}
+			else
+				qWarning() << "QDiscord Network error (refresh)" << r->errorString();
+		}
+
+		// Authenticate from stored token
+		if(!oauthData["access_token"].isNull()) {
+			const QJsonObject msg = sendCommand("AUTHENTICATE", QJsonObject{
+				{"access_token", oauthData["access_token"].toString()}
+			});
+
+			if(msg["cmd"] == "AUTHENTICATE") {
+				qDebug() << "Connected through pre-stored token";
+				userID_ = msg["data"]["user"]["id"].toString();
+				return true;
+			}
+		}
+
+		// Send authorization request
+		if(oauthData["access_token"].isNull()) {
+			// Authorize in Discord
+			QString authCode;
+			{
+				const QJsonObject msg = sendCommand("AUTHORIZE", QJsonObject{
+					{"client_id", clientID},
+					{"scopes",    QJsonArray::fromStringList(scopes)}
+				});
+
+				if(msg["cmd"] != "AUTHORIZE") {
+					qWarning() << "Authorize - unexpected result" << msg;
+					return false;
+				}
+
+				authCode = msg["data"].toObject()["code"].toString();
 			}
 
-			oauthData = QJsonDocument::fromJson(r->readAll()).object();
+			// Get access token
+			{
+				QNetworkAccessManager nm;
+				QNetworkRequest req;
+				const QUrlQuery q{
+					{"client_id",     clientID},
+					{"client_secret", clientSecret},
+					{"code",          authCode},
+					{"scope",         scopes.join(' ')},
+					{"grant_type",    "authorization_code"},
+				};
+				QUrl url("https://discord.com/api/oauth2/token");
+				req.setUrl(url);
+				req.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+				auto r = nm.post(req, q.toString(QUrl::FullyEncoded).toUtf8());
+
+				QEventLoop l;
+				QObject::connect(r, &QNetworkReply::finished, &l, &QEventLoop::quit);
+
+				qDebug() << "AUTH REQ" << req.url() << q.toString();
+
+				l.exec();
+				r->deleteLater();
+
+				if(r->error() != QNetworkReply::NoError) {
+					qWarning() << "QDiscord Network error" << r->errorString();
+					return false;
+				}
+
+				oauthData = QJsonDocument::fromJson(r->readAll()).object();
+			}
+
 			if(oauthData["access_token"].toString().isEmpty()) {
 				qWarning() << "QDiscord failed to obtain access token";
 				return false;
