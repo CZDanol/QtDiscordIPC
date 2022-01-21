@@ -70,8 +70,6 @@ private:
 	bool isConnected_ = false;
 	QString userID_;
 	int nonceCounter_ = 0;
-
-	/// Stores whether there is currently a blocking read being executed
 	int blockingRead_ = 0;
 
 };

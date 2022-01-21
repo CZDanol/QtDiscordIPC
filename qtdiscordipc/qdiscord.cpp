@@ -27,7 +27,12 @@ QDiscord::QDiscord() {
 		disconnect();
 	});
 	QObject::connect(&socket_, &QLocalSocket::readyRead, this, [this] {
+		if(blockingRead_)
+			return;
+
 		readAndProcessMessages();
+		if(socket_.bytesAvailable())
+			qDebug() << "ASSERTION FAILED: bytes still available after read and process messages";
 	});
 }
 
@@ -46,14 +51,12 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 		// Handshake and dispatch Receive DISPATCH
 		{
-			blockingRead_++;
 			sendMessage(QJsonObject{
 				{"v",         1},
 				{"client_id", clientID},
 			}, 0);
 
 			const QJsonObject msg = readMessage();
-			blockingRead_--;
 
 			if(msg["cmd"] != "DISPATCH") {
 				qWarning() << "QDiscord - unexpected message (expected DISPATCH)" << msg["cmd"];
@@ -228,12 +231,6 @@ void QDiscord::disconnect() {
 }
 
 QJsonObject QDiscord::sendCommand(const QString &command, const QJsonObject &args, const QJsonObject &msgOverrides) {
-	if(blockingRead_) {
-		qWarning() << "readMessage while blockingRead";
-		throw;
-	}
-	blockingRead_++;
-
 	const QString nonce = QStringLiteral("%1:%2").arg(QString::number(nonceCounter_++), QString::number(QRandomGenerator64::global()->generate()));
 	QJsonObject message{
 		{"cmd",   command},
@@ -247,16 +244,16 @@ QJsonObject QDiscord::sendCommand(const QString &command, const QJsonObject &arg
 	sendMessage(message);
 
 	const auto result = readMessage(nonce);
-	blockingRead_--;
-
 	return std::move(result);
 }
 
 QJsonObject QDiscord::readMessage(const QString &nonce) {
+	qDebug() << "readMsg" << nonce;
 	while(true) {
 		const QByteArray headerBA = blockingReadBytes(sizeof(MessageHeader));
-		if(headerBA.isNull())
+		if(headerBA.isNull()) {
 			return {};
+		}
 
 		const MessageHeader &header = *reinterpret_cast<const MessageHeader *>(headerBA.data());
 
@@ -274,16 +271,17 @@ QJsonObject QDiscord::readMessage(const QString &nonce) {
 
 		// If the nonce does not match, process the message instead
 		if(!nonce.isEmpty() && result["nonce"] != nonce) {
+			qDebug() << "Not what wanted, waiting for other messsages";
 			processMessage(result);
 			continue;
 		}
 
+		// If there are any further messages to be processed, process them
+		readAndProcessMessages();
+
 		if(result["evt"] == "ERROR")
 			return {};
 
-
-		// If there are any further messages to be read, read them
-		readAndProcessMessages();
 		return result;
 	}
 }
@@ -306,17 +304,23 @@ void QDiscord::processMessage(const QJsonObject &msg) {
 }
 
 QByteArray QDiscord::blockingReadBytes(int bytes) {
+	blockingRead_++;
 	while(socket_.bytesAvailable() < bytes) {
+		qDebug() << "wait for ready read" << bytes << socket_.bytesAvailable();
 		if(!socket_.waitForReadyRead(30000)) {
 			qWarning() << "QDiscord - waitForReadyRead timeout";
 			return {};
 		}
+		qDebug() << "end wait for ready read";
 	}
+	blockingRead_--;
 
 	return socket_.read(bytes);
 }
 
 void QDiscord::readAndProcessMessages() {
-	while(!blockingRead_ && socket_.bytesAvailable())
+	while(socket_.bytesAvailable()) {
+		qDebug() << "qrdiscord bytes available" << socket_.bytesAvailable();
 		processMessage(readMessage());
+	}
 }
