@@ -248,7 +248,6 @@ QJsonObject QDiscord::sendCommand(const QString &command, const QJsonObject &arg
 }
 
 QJsonObject QDiscord::readMessage(const QString &nonce) {
-	qDebug() << "readMsg" << nonce;
 	while(true) {
 		const QByteArray headerBA = blockingReadBytes(sizeof(MessageHeader));
 		if(headerBA.isNull()) {
@@ -306,12 +305,10 @@ void QDiscord::processMessage(const QJsonObject &msg) {
 QByteArray QDiscord::blockingReadBytes(int bytes) {
 	blockingRead_++;
 	while(socket_.bytesAvailable() < bytes) {
-		qDebug() << "wait for ready read" << bytes << socket_.bytesAvailable();
 		if(!socket_.waitForReadyRead(30000)) {
 			qWarning() << "QDiscord - waitForReadyRead timeout";
 			return {};
 		}
-		qDebug() << "end wait for ready read";
 	}
 	blockingRead_--;
 
@@ -320,7 +317,6 @@ QByteArray QDiscord::blockingReadBytes(int bytes) {
 
 void QDiscord::readAndProcessMessages() {
 	while(socket_.bytesAvailable()) {
-		qDebug() << "qrdiscord bytes available" << socket_.bytesAvailable();
 		processMessage(readMessage());
 	}
 }
