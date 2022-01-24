@@ -5,6 +5,9 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QTimer>
+#include <QImage>
+#include <QCache>
+#include <QNetworkAccessManager>
 
 class QDiscord : public QObject {
 Q_OBJECT
@@ -36,9 +39,15 @@ public:
 	 */
 	QJsonObject sendCommand(const QString &command, const QJsonObject &args, const QJsonObject &msgOverrides = {});
 
+public:
+	/// The function can be async, the avatar loading can be delayed and then signalled using avatarReady
+	QImage getUserAvatar(const QString &userId, const QString &avatarId);
+
 signals:
 	/// This signal is emitted when there is a message received that is not a response to a command
 	void messageReceived(const QJsonObject &msg);
+
+	void avatarReady(const QString &avatarId, const QImage &img);
 
 	void connected();
 
@@ -69,8 +78,13 @@ private:
 	QLocalSocket socket_;
 	bool isConnected_ = false;
 	QString userID_;
+	QString cdn_;
 	int nonceCounter_ = 0;
 	int blockingRead_ = 0;
+
+private:
+	QNetworkAccessManager netMgr_;
+	QCache<QString, QImage> avatarsCache_;
 
 };
 

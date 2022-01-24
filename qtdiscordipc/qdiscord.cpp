@@ -12,6 +12,8 @@
 #include <QNetworkReply>
 #include <QDesktopServices>
 #include <QUrlQuery>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 
 struct MessageHeader {
 	uint32_t opcode;
@@ -62,6 +64,8 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 				qWarning() << "QDiscord - unexpected message (expected DISPATCH)" << msg["cmd"];
 				return false;
 			}
+
+			cdn_ = msg["data"]["config"]["cdn_host"].toString();
 		}
 
 		QJsonObject oauthData;
@@ -245,6 +249,22 @@ QJsonObject QDiscord::sendCommand(const QString &command, const QJsonObject &arg
 
 	const auto result = readMessage(nonce);
 	return std::move(result);
+}
+
+QImage QDiscord::getUserAvatar(const QString &userId, const QString &avatarId) {
+	if(QImage *img = avatarsCache_.object(avatarId))
+		return *img;
+
+	const QString url = QStringLiteral("https://%1/avatars/%2/%3.png").arg(cdn_, userId, avatarId);
+	QNetworkReply *r = netMgr_.get(QNetworkRequest(QUrl(url)));
+	QObject::connect(r, &QNetworkReply::finished, this, [this, r, avatarId] {
+		const QImage img = QImage::fromData(r->readAll());
+		r->deleteLater();
+		avatarsCache_.insert(avatarId, new QImage(img));
+		emit avatarReady(avatarId, img);
+	});
+
+	return {};
 }
 
 QJsonObject QDiscord::readMessage(const QString &nonce) {
