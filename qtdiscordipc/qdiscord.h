@@ -16,6 +16,10 @@ public:
 	QDiscord();
 
 public:
+	static double ipcToUIVolume(double v);
+	static double uiToIPCVolume(double v);
+
+public:
 	/**
 	 * Tries to connext to the Discord. Returns true if successfull (this function is blocking)
 	 */

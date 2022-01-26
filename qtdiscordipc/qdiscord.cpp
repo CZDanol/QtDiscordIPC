@@ -21,6 +21,24 @@ struct MessageHeader {
 };
 static_assert(sizeof(MessageHeader) == 8);
 
+double QDiscord::ipcToUIVolume(double v) {
+	if(v <= 0)
+		return 0;
+	else if(v <= 100)
+		return 17.362 * log(v) + 20.054;
+	else
+		return 144.86 * log(v) - 567.21;
+}
+
+double QDiscord::uiToIPCVolume(double v) {
+	if(v <= 0)
+		return 0;
+	else if(v <= 100)
+		return exp((v - 20.054) / 17.362);
+	else
+		return exp((v + 567.21) / 144.86);
+}
+
 QDiscord::QDiscord() {
 	QObject::connect(&socket_, &QLocalSocket::errorOccurred, this, [this](const QLocalSocket::LocalSocketError &err) {
 		qWarning() << "QDiscord socket error: " << static_cast<int>(err);
