@@ -35,6 +35,11 @@ public:
 		return userID_;
 	}
 
+	/// Returns whether the discord is processing something (connecting, waiting for message, ...)
+	inline bool isProcessing() const {
+		return processing_ > 0;
+	}
+
 public:
 	/**
 	 * Sends a command and blocking calls for result.
@@ -85,6 +90,7 @@ private:
 	QString cdn_;
 	int nonceCounter_ = 0;
 	int blockingRead_ = 0;
+	int processing_ = 0;
 
 private:
 	QNetworkAccessManager netMgr_;

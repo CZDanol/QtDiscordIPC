@@ -57,6 +57,7 @@ QDiscord::QDiscord() {
 }
 
 bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
+	processing_++;
 	const bool r = [&]() {
 		// start connecting
 		socket_.connectToServer("discord-ipc-0");
@@ -234,10 +235,10 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 	isConnected_ = r;
 
-	if(isConnected_) {
+	if(isConnected_)
 		emit connected();
-	}
 
+	processing_--;
 	return r;
 }
 
@@ -270,7 +271,7 @@ QJsonObject QDiscord::sendCommand(const QString &command, const QJsonObject &arg
 }
 
 QImage QDiscord::getUserAvatar(const QString &userId, const QString &avatarId) {
-	if(QImage *img = avatarsCache_.object(avatarId))
+	if(QImage * img = avatarsCache_.object(avatarId))
 		return *img;
 
 	const QString url = QStringLiteral("https://%1/avatars/%2/%3.png").arg(cdn_, userId, avatarId);
@@ -342,12 +343,16 @@ void QDiscord::processMessage(const QJsonObject &msg) {
 
 QByteArray QDiscord::blockingReadBytes(int bytes) {
 	blockingRead_++;
+	processing_ ++;
 	while(socket_.bytesAvailable() < bytes) {
 		if(!socket_.waitForReadyRead(30000)) {
 			qWarning() << "QDiscord - waitForReadyRead timeout";
+			processing_ --;
+			blockingRead_--;
 			return {};
 		}
 	}
+	processing_ --;
 	blockingRead_--;
 
 	return socket_.read(bytes);
