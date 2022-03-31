@@ -60,14 +60,19 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 	processing_++;
 	const bool r = [&]() {
 		// start connecting
-		socket_.connectToServer("discord-ipc-0");
-		qDebug() << "Trying to connect to Discord";
+		for(int i = 0; i < 10; i++) {
+			socket_.connectToServer("discord-ipc-" + QString::number(i));
+			qDebug() << "Trying to connect to Discord (" << i << ")";
 
-		if(!socket_.waitForConnected(3000)) {
+			if(socket_.waitForConnected(3000))
+				break;
+		}
+		if(socket_.state() != QLocalSocket::ConnectedState) {
 			qDebug() << "Connection failed";
 			return false;
 		}
 
+		qDebug() << "Connected";
 		static const QStringList scopes{"rpc", "identify"};
 
 		// Handshake and dispatch Receive DISPATCH
@@ -271,7 +276,7 @@ QJsonObject QDiscord::sendCommand(const QString &command, const QJsonObject &arg
 }
 
 QImage QDiscord::getUserAvatar(const QString &userId, const QString &avatarId) {
-	if(QImage * img = avatarsCache_.object(avatarId))
+	if(QImage *img = avatarsCache_.object(avatarId))
 		return *img;
 
 	const QString url = QStringLiteral("https://%1/avatars/%2/%3.png").arg(cdn_, userId, avatarId);
@@ -343,16 +348,16 @@ void QDiscord::processMessage(const QJsonObject &msg) {
 
 QByteArray QDiscord::blockingReadBytes(int bytes) {
 	blockingRead_++;
-	processing_ ++;
+	processing_++;
 	while(socket_.bytesAvailable() < bytes) {
 		if(!socket_.waitForReadyRead(30000)) {
 			qWarning() << "QDiscord - waitForReadyRead timeout";
-			processing_ --;
+			processing_--;
 			blockingRead_--;
 			return {};
 		}
 	}
-	processing_ --;
+	processing_--;
 	blockingRead_--;
 
 	return socket_.read(bytes);
