@@ -9,11 +9,15 @@
 #include <QCache>
 #include <QNetworkAccessManager>
 
+#include "qdiscordmessage.h"
+#include "qdiscordreply.h"
+
 class QDiscord : public QObject {
 Q_OBJECT
 
 public:
 	QDiscord();
+	~QDiscord();
 
 public:
 	static double ipcToUIVolume(double v);
@@ -42,11 +46,11 @@ public:
 
 public:
 	/**
-	 * Sends a command and blocking calls for result.
+	 * Sends a command. Asynchronously returns the result via QDiscordReply::finished
 	 * $args is put in the "args" field.
 	 * $msgOverrides is injected into the main body
 	 */
-	QJsonObject sendCommand(const QString &command, const QJsonObject &args, const QJsonObject &msgOverrides = {});
+	QDiscordReply *sendCommand(const QString &command, const QJsonObject &args, const QJsonObject &msgOverrides = {});
 
 public:
 	/// The function can be async, the avatar loading can be delayed and then signalled using avatarReady
@@ -54,7 +58,7 @@ public:
 
 signals:
 	/// This signal is emitted when there is a message received that is not a response to a command
-	void messageReceived(const QJsonObject &msg);
+	void messageReceived(const QDiscordMessage &msg);
 
 	void avatarReady(const QString &avatarId, const QImage &img);
 
@@ -63,18 +67,15 @@ signals:
 	void disconnected();
 
 private:
-	/**
-	 * Blocking reads a packet.
-	 * If nonce is specified, waits for a packet with a given nonce. If other packets are received, calls processMessage over them.
-	 */
-	QJsonObject readMessage(const QString &nonce = QString());
+	/// Blockingly reads a single message.
+	QDiscordMessage readMessage();
 
 	void sendMessage(const QJsonObject &packet, int opCode = 1);
 
 	/**
  * Processes incoming messages.
  */
-	void processMessage(const QJsonObject &msg);
+	void processMessage(const QDiscordMessage &msg);
 
 private:
 	/// Blocking waits until given amount of bytes is available
@@ -95,6 +96,7 @@ private:
 private:
 	QNetworkAccessManager netMgr_;
 	QCache<QString, QImage> avatarsCache_;
+	QHash<QString, QDiscordReply *> pendingReplies_;
 
 };
 
