@@ -14,6 +14,15 @@ public:
 	}
 
 signals:
+	/// Returns when the command was successful
+	/// The object gets deleted right after this signal is emitted (deleteLater)
+	void success(const QDiscordMessage &msg);
+
+	/// Returns on failure
+	/// The object gets deleted right after this signal is emitted (deleteLater)
+	void error(const QDiscordMessage &msg);
+
+	/// Returned no matter if the command was success or not
 	/// The object gets deleted right after this signal is emitted (deleteLater)
 	void finished(const QDiscordMessage &msg);
 
@@ -22,6 +31,9 @@ protected:
 
 	/// Is managed internally in QDiscord
 	~QDiscordReply() = default;
+
+private:
+	void onFinished(const QDiscordMessage &msg);
 
 private:
 	QString nonce_;

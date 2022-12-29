@@ -7,7 +7,7 @@ struct QDiscordMessage {
 Q_GADGET
 
 public:
-	enum class MessageType {
+	enum class EventType {
 		unkonwn,
 		ready,
 		error,
@@ -31,13 +31,13 @@ public:
 		activityJoinRequest,
 	};
 
-	Q_ENUM(MessageType);
+	Q_ENUM(EventType);
 
 public:
 	static QDiscordMessage fromJson(const QJsonObject &json, int opcode = 0);
 
 public:
-	MessageType type = MessageType::unkonwn;
+	EventType event = EventType::unkonwn;
 	QJsonObject json;
 	QString nonce;
 	int opcode = 0;

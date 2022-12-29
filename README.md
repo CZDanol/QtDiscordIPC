@@ -6,15 +6,12 @@ API documentation: https://discord.com/developers/docs/topics/rpc
 
 **Cudos to [this guy on Stack Overflow](https://stackoverflow.com/a/68958800/5290264).** His answer was the only information source I was able to find about the Discord IPC protocol. Without that I wouldn't be able to make this lib.
 
-Uses OAuth authentication. After authentized, stores the auth data in discordOauth.json so that the app doesn't have to authentize each time
+Uses OAuth authentication. After authentized, stores the auth data in discordOauth.json so that the app doesn't have to authenticate each time.
+
+Asynchronous usage, using Qt event system (similar to QNetworkReply).
+
+> **See the [Discord Volume Mixer 2](https://github.com/CZDanol/StreamDeck-DiscordVolumeMixer2) github repo for example usage and setup instructions.**
 
 ## Requirements
 Requires Qt Core and Network.
 Tested on MSVC 2019 x64, Qt 6.2.1, C++17.
-
-## Usage
-The API is blocking, so everything's quite simple. Just beware that it might run QEventLoop locally for the blocking operations.
-
-1. Create an app on the Discord Developer Portal.
-2. Set the redirect URI to `http://localhost:1337/callback`
-3. Copy Client ID and Client Secret from the Oauth2 tab on the portal and give it to the application.

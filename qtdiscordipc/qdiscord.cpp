@@ -14,6 +14,8 @@
 #include <QUrlQuery>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QMetaEnum>
+#include <QRegularExpression>
 
 struct MessageHeader {
 	uint32_t opcode;
@@ -62,8 +64,15 @@ QDiscord::~QDiscord() {
 }
 
 bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
+	connectionError_.clear();
 	processing_++;
 	const bool r = [&]() {
+		if(clientID.isEmpty() || clientSecret.isEmpty()) {
+			qDebug() << "Missing client ID or secret";
+			connectionError_ = "ERROR 000\nMissing clientID/secret";
+			return false;
+		}
+
 		// start connecting
 		for(int i = 0; i < 10; i++) {
 			socket_.connectToServer("discord-ipc-" + QString::number(i));
@@ -74,6 +83,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 		}
 		if(socket_.state() != QLocalSocket::ConnectedState) {
 			qDebug() << "Connection failed";
+			connectionError_ = "ERROR 001\nCould not connect to Discord.";
 			return false;
 		}
 
@@ -90,7 +100,8 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 			const QDiscordMessage msg = readMessage();
 
 			if(msg.json["cmd"] != "DISPATCH") {
-				qWarning() << "QDiscord - unexpected message (expected DISPATCH)" << msg["cmd"];
+				qWarning() << "QDiscord - unexpected message (expected DISPATCH)" << msg.json["cmd"];
+				connectionError_ = "ERROR 002";
 				return false;
 			}
 
@@ -144,14 +155,16 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 				oauthData = QJsonDocument::fromJson(r->readAll()).object();
 				saveOauthData();
 			}
-			else
+			else {
+				connectionError_ = "ERROR 003\nNetwork error";
 				qWarning() << "QDiscord Network error (refresh)" << r->errorString();
+			}
 		}
 
 		// Authenticate from stored token
 		if(!oauthData["access_token"].isNull()) {
 			sendMessage(QJsonObject{
-				{"cmd",   "AUTHENTICATE"},
+				{"cmd",   +CommandType::authenticate},
 				{"nonce", "auth_0"},
 				{"args",  QJsonObject{
 					{"access_token", oauthData["access_token"].toString()}
@@ -175,7 +188,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 			QString authCode;
 			{
 				sendMessage(QJsonObject{
-					{"cmd",   "AUTHORIZE"},
+					{"cmd",   +CommandType::authorize},
 					{"nonce", "auth_1"},
 					{"args",  QJsonObject{
 						{"client_id", clientID},
@@ -185,6 +198,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 				const QDiscordMessage msg = readMessage();
 				if(msg.json["cmd"] != "AUTHORIZE") {
+					connectionError_ = "ERROR 004\nCould not authorize";
 					qWarning() << "Authorize - unexpected result" << msg.json;
 					return false;
 				}
@@ -217,6 +231,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 				r->deleteLater();
 
 				if(r->error() != QNetworkReply::NoError) {
+					connectionError_ = "ERROR 005\nNetwork error";
 					qWarning() << "QDiscord Network error" << r->errorString();
 					return false;
 				}
@@ -225,6 +240,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 			}
 
 			if(oauthData["access_token"].toString().isEmpty()) {
+				connectionError_ = "ERROR 006\nAccess token problem";
 				qWarning() << "QDiscord failed to obtain access token";
 				return false;
 			}
@@ -244,6 +260,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 			const QDiscordMessage msg = readMessage();
 			if(msg.json["cmd"] != "AUTHENTICATE") {
+				connectionError_ = "ERROR 007";
 				qWarning() << "QDiscord expected AUTHENTICATE";
 				return false;
 			}
@@ -260,8 +277,10 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 	isConnected_ = r;
 
-	if(isConnected_)
+	if(isConnected_) {
+		connectionError_.clear();
 		emit connected();
+	}
 
 	processing_--;
 	return r;
@@ -375,4 +394,27 @@ QByteArray QDiscord::blockingReadBytes(int bytes) {
 void QDiscord::readAndProcessMessages() {
 	while(socket_.bytesAvailable())
 		processMessage(readMessage());
+}
+
+QString operator +(QDiscord::CommandType ct) {
+	static const QHash<int, QString> ht = [] {
+		const auto me = QMetaEnum::fromType<QDiscord::CommandType>();
+		const auto cnt = me.keyCount();
+
+		QHash<int, QString> r;
+		r.reserve(cnt);
+
+		const QRegularExpression regex("([A-Z])");
+
+		for(int i = 0; i < cnt; i++) {
+			QString str = me.key(i);
+			str.replace(regex, "_\\1"); // Add _ underscore before every capitalized letter (guildStatus -> guild_Status)
+			str = str.toUpper(); // Convert all to uppercase (guild_Status -> GUILD_STATUS)
+
+			r.insert(me.value(i), str);
+		}
+
+		return r;
+	}();
+	return ht.value(int(ct));
 }

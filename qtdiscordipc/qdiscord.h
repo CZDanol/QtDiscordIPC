@@ -16,11 +16,43 @@ class QDiscord : public QObject {
 Q_OBJECT
 
 public:
+	enum class CommandType {
+		unknown = -1,
+		dispatch,
+		authorize,
+		authenticate,
+
+		getGuild,
+		getGuilds,
+		getChannel,
+		getChannels,
+
+		subscribe,
+		unsubscribe,
+
+		setUserVoiceSettings,
+		selectVoiceChannel,
+		getSelectedVoiceChannel,
+		selectTextChannel,
+		getVoiceSettings,
+		setCertifiedDevices,
+
+		setActivity,
+		sendActivityJoinInvite,
+		closeActivityRequest,
+	};
+
+	Q_ENUM(CommandType);
+
+public:
 	QDiscord();
 	~QDiscord();
 
 public:
+	/// Maps volume value returned by the IPC to the value that is shown in the Discord UI
 	static double ipcToUIVolume(double v);
+
+	/// Maps volume value that is shown in the Discord UI to the value range the IPC uses
 	static double uiToIPCVolume(double v);
 
 public:
@@ -33,6 +65,10 @@ public:
 
 	inline bool isConnected() const {
 		return isConnected_;
+	}
+
+	inline const QString &connectionError() const {
+		return connectionError_;
 	}
 
 	inline const QString &userID() const {
@@ -50,7 +86,7 @@ public:
 	 * $args is put in the "args" field.
 	 * $msgOverrides is injected into the main body
 	 */
-	QDiscordReply *sendCommand(const QString &command, const QJsonObject &args, const QJsonObject &msgOverrides = {});
+	QDiscordReply *sendCommand(const QString &command, const QJsonObject &args = {}, const QJsonObject &msgOverrides = {});
 
 public:
 	/// The function can be async, the avatar loading can be delayed and then signalled using avatarReady
@@ -87,6 +123,7 @@ private:
 private:
 	QLocalSocket socket_;
 	bool isConnected_ = false;
+	QString connectionError_;
 	QString userID_;
 	QString cdn_;
 	int nonceCounter_ = 0;
@@ -100,3 +137,4 @@ private:
 
 };
 
+QString operator +(QDiscord::CommandType ct);
