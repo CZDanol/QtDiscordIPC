@@ -38,7 +38,7 @@ public:
 
 public:
 	EventType event = EventType::unkonwn;
-	QJsonObject json;
+	QJsonObject json, data;
 	QString nonce;
 	int opcode = 0;
 

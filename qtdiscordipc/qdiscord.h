@@ -16,6 +16,10 @@ class QDiscord : public QObject {
 Q_OBJECT
 
 public:
+	static constexpr float minVoiceVolume = 0;
+	static constexpr float maxVoiceVolume = 200;
+
+public:
 	enum class CommandType {
 		unknown = -1,
 		dispatch,
@@ -34,6 +38,7 @@ public:
 		selectVoiceChannel,
 		getSelectedVoiceChannel,
 		selectTextChannel,
+		setVoiceSettings,
 		getVoiceSettings,
 		setCertifiedDevices,
 

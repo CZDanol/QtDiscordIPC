@@ -5,8 +5,10 @@ QDiscordReply::QDiscordReply(const QString &nonce) : nonce_(nonce) {
 }
 
 void QDiscordReply::onFinished(const QDiscordMessage &msg) {
-	if(msg.event == QDiscordMessage::EventType::error)
+	if(msg.event == QDiscordMessage::EventType::error) {
+		qDebug() << "discord error" << msg.json;
 		emit error(msg);
+	}
 	else
 		emit success(msg);
 }

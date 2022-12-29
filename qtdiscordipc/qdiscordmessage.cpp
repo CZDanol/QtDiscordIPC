@@ -26,6 +26,7 @@ QDiscordMessage QDiscordMessage::fromJson(const QJsonObject &json, int opcode) {
 	return QDiscordMessage{
 		.event = eventTypes.value(json["evt"].toString()),
 		.json = json,
+		.data = json["data"].toObject(),
 		.nonce = json["nonce"].toString(),
 		.opcode = opcode,
 	};

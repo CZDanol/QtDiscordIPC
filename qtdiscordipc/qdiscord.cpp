@@ -105,7 +105,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 				return false;
 			}
 
-			cdn_ = msg.json["data"]["config"]["cdn_host"].toString();
+			cdn_ = msg.data["config"]["cdn_host"].toString();
 		}
 
 		QJsonObject oauthData;
@@ -203,7 +203,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 					return false;
 				}
 
-				authCode = msg.json["data"].toObject()["code"].toString();
+				authCode = msg.data["code"].toString();
 			}
 
 			// Get access token
