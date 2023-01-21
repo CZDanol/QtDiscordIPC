@@ -378,7 +378,7 @@ QByteArray QDiscord::blockingReadBytes(int bytes) {
 	blockingRead_++;
 	processing_++;
 	while(socket_.bytesAvailable() < bytes) {
-		if(!socket_.waitForReadyRead(30000)) {
+		if(!socket_.waitForReadyRead(2000)) {
 			qWarning() << "QDiscord - waitForReadyRead timeout";
 			processing_--;
 			blockingRead_--;
