@@ -1,19 +1,14 @@
 #include "qdiscord.h"
 
 #include <QJsonDocument>
-#include <QTimer>
 #include <QRandomGenerator64>
 #include <QFile>
-#include <QtNetworkAuth/QOAuth2AuthorizationCodeFlow>
-#include <QtNetworkAuth/QOAuthHttpServerReplyHandler>
 #include <QHttpMultiPart>
 #include <QEventLoop>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QDesktopServices>
 #include <QUrlQuery>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
 #include <QMetaEnum>
 #include <QRegularExpression>
 
@@ -172,7 +167,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 			});
 
 			const QDiscordMessage msg = readMessage();
-			if(msg.json["cmd"] == "AUTHENTICATE") {
+			if(msg.json["cmd"] == "AUTHENTICATE" && msg.json["evt"] != "ERROR") {
 				qDebug() << "Connected through pre-stored token";
 				loadIdentityFromAuth(msg.json);
 				return true;
@@ -197,9 +192,9 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 				});
 
 				const QDiscordMessage msg = readMessage();
-				if(msg.json["cmd"] != "AUTHORIZE") {
+				if(msg.json["cmd"] != "AUTHORIZE" || msg.json["evt"] == "ERROR") {
 					connectionError_ = "ERROR 004\nCould not authorize";
-					qWarning() << "Authorize - unexpected result" << msg.json;
+					qWarning() << "AUTHORIZE ERROR" << msg.json;
 					return false;
 				}
 
@@ -259,9 +254,9 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 			});
 
 			const QDiscordMessage msg = readMessage();
-			if(msg.json["cmd"] != "AUTHENTICATE") {
+			if(msg.json["cmd"] != "AUTHENTICATE" || msg.json["evt"] == "ERROR") {
 				connectionError_ = "ERROR 007";
-				qWarning() << "QDiscord expected AUTHENTICATE";
+				qWarning() << "AUTHENTICATE ERROR" << msg.json;
 				return false;
 			}
 
@@ -347,7 +342,7 @@ QDiscordMessage QDiscord::readMessage() {
 	if(err.error != QJsonParseError::NoError)
 		qWarning() << "QDiscord - failed to parse message\n\n" << data;
 
-	qDebug() << "<<<<< RECV\n" << result.json << "\n";
+	qDebug() << "<<<<< RECV\n" << header.opcode << header.length << result.json << "\n";
 
 	return result;
 }
@@ -355,7 +350,7 @@ QDiscordMessage QDiscord::readMessage() {
 void QDiscord::sendMessage(const QJsonObject &packet, int opCode) {
 	const QByteArray payload = QJsonDocument(packet).toJson(QJsonDocument::Compact);
 
-	qDebug() << ">>>>> SEND\n" << packet << "\n";
+	qDebug() << ">>>>> SEND\n" << opCode << payload.length() << packet << "\n";
 
 	MessageHeader header;
 	header.opcode = static_cast<uint32_t>(opCode);
