@@ -125,12 +125,16 @@ private:
 	/// Non-blocking processes received messsages
 	void readAndProcessMessages();
 
+private slots:
+	void dispatch();
+
 private:
 	QLocalSocket socket_;
 	bool isConnected_ = false;
 	QString connectionError_;
 	QString userID_;
 	QString cdn_;
+	QTimer dispatchTimer_;
 	int nonceCounter_ = 0;
 	int blockingRead_ = 0;
 	int processing_ = 0;

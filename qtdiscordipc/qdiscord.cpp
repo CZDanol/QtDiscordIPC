@@ -41,6 +41,8 @@ QDiscord::QDiscord() {
 		qWarning() << "QDiscord socket error: " << static_cast<int>(err);
 	});
 	QObject::connect(&socket_, &QLocalSocket::disconnected, this, [this] {
+		qDebug() << "Disconnected";
+		connectionError_ = "DISCONNECTED";
 		disconnect();
 	});
 	QObject::connect(&socket_, &QLocalSocket::readyRead, this, [this] {
@@ -51,6 +53,9 @@ QDiscord::QDiscord() {
 		if(socket_.bytesAvailable())
 			qDebug() << "ASSERTION FAILED: bytes still available after read and process messages";
 	});
+
+	dispatchTimer_.setInterval(1000);
+	dispatchTimer_.callOnTimeout(this, &QDiscord::dispatch);
 }
 
 QDiscord::~QDiscord() {
@@ -64,7 +69,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 	const bool r = [&]() {
 		if(clientID.isEmpty() || clientSecret.isEmpty()) {
 			qDebug() << "Missing client ID or secret";
-			connectionError_ = "ERROR 000\nMissing clientID/secret";
+			connectionError_ = "ERR000 NO CREDENTIALS";
 			return false;
 		}
 
@@ -78,7 +83,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 		}
 		if(socket_.state() != QLocalSocket::ConnectedState) {
 			qDebug() << "Connection failed";
-			connectionError_ = "ERROR 001\nCould not connect to Discord.";
+			connectionError_ = "ERR001 NO DISCORD";
 			return false;
 		}
 
@@ -96,7 +101,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 			if(msg.json["cmd"] != "DISPATCH") {
 				qWarning() << "QDiscord - unexpected message (expected DISPATCH)" << msg.json["cmd"];
-				connectionError_ = "ERROR 002";
+				connectionError_ = "ERROR002 WRONG CREDENTIALS";
 				return false;
 			}
 
@@ -193,7 +198,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 				const QDiscordMessage msg = readMessage();
 				if(msg.json["cmd"] != "AUTHORIZE" || msg.json["evt"] == "ERROR") {
-					connectionError_ = "ERROR 004\nCould not authorize";
+					connectionError_ = "ERR004 ACCOUNT MISMATCH";
 					qWarning() << "AUTHORIZE ERROR" << msg.json;
 					return false;
 				}
@@ -270,9 +275,9 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 	if(!r)
 		disconnect();
 
-	isConnected_ = r;
-
-	if(isConnected_) {
+	else {
+		isConnected_ = true;
+		dispatchTimer_.start();
 		connectionError_.clear();
 		emit connected();
 	}
@@ -285,6 +290,7 @@ void QDiscord::disconnect() {
 	const bool wasConnected = isConnected_;
 
 	socket_.disconnectFromServer();
+	dispatchTimer_.stop();
 	isConnected_ = false;
 	userID_.clear();
 
@@ -389,6 +395,17 @@ QByteArray QDiscord::blockingReadBytes(int bytes) {
 void QDiscord::readAndProcessMessages() {
 	while(socket_.bytesAvailable())
 		processMessage(readMessage());
+}
+
+void QDiscord::dispatch() {
+	qDebug() << ">>>>> DISPATCH\n";
+
+	const QString nonce = QStringLiteral("%1:%2").arg(QString::number(nonceCounter_++), QString::number(QRandomGenerator64::global()->generate()));
+	QJsonObject message{
+		{"cmd",   "DISPATCH"},
+		{"args",  QJsonArray{}},
+		{"nonce", nonce}
+	};
 }
 
 QString operator +(QDiscord::CommandType ct) {
