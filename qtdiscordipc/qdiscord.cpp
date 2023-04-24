@@ -42,7 +42,8 @@ QDiscord::QDiscord() {
 	});
 	QObject::connect(&socket_, &QLocalSocket::disconnected, this, [this] {
 		qDebug() << "Disconnected";
-		connectionError_ = "DISCONNECTED";
+		if(connectionError_.isEmpty())
+			connectionError_ = "DISCONNECTED";
 		disconnect();
 	});
 	QObject::connect(&socket_, &QLocalSocket::readyRead, this, [this] {
@@ -69,7 +70,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 	const bool r = [&]() {
 		if(clientID.isEmpty() || clientSecret.isEmpty()) {
 			qDebug() << "Missing client ID or secret";
-			connectionError_ = "ERR000 NO CREDENTIALS";
+			connectionError_ = "E0 NO CREDENTIALS";
 			return false;
 		}
 
@@ -83,7 +84,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 		}
 		if(socket_.state() != QLocalSocket::ConnectedState) {
 			qDebug() << "Connection failed";
-			connectionError_ = "ERR001 NO DISCORD";
+			connectionError_ = "E1 NO DISCORD";
 			return false;
 		}
 
@@ -101,7 +102,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 			if(msg.json["cmd"] != "DISPATCH") {
 				qWarning() << "QDiscord - unexpected message (expected DISPATCH)" << msg.json["cmd"];
-				connectionError_ = "ERROR002 WRONG CREDENTIALS";
+				connectionError_ = "E2 WRONG CREDENTIALS";
 				return false;
 			}
 
@@ -156,7 +157,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 				saveOauthData();
 			}
 			else {
-				connectionError_ = "ERROR 003\nNetwork error";
+				connectionError_ = "E3 NETWORK ERR";
 				qWarning() << "QDiscord Network error (refresh)" << r->errorString();
 			}
 		}
@@ -198,7 +199,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 				const QDiscordMessage msg = readMessage();
 				if(msg.json["cmd"] != "AUTHORIZE" || msg.json["evt"] == "ERROR") {
-					connectionError_ = "ERR004 ACCOUNT MISMATCH";
+					connectionError_ = "E4 ACCOUNT MISMATCH";
 					qWarning() << "AUTHORIZE ERROR" << msg.json;
 					return false;
 				}
@@ -231,7 +232,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 				r->deleteLater();
 
 				if(r->error() != QNetworkReply::NoError) {
-					connectionError_ = "ERROR 005\nNetwork error";
+					connectionError_ = "E5 NETWORK ERR";
 					qWarning() << "QDiscord Network error" << r->errorString();
 					return false;
 				}
@@ -240,7 +241,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 			}
 
 			if(oauthData["access_token"].toString().isEmpty()) {
-				connectionError_ = "ERROR 006\nAccess token problem";
+				connectionError_ = "E6 TOKEN PROBLEM";
 				qWarning() << "QDiscord failed to obtain access token";
 				return false;
 			}
@@ -398,14 +399,15 @@ void QDiscord::readAndProcessMessages() {
 }
 
 void QDiscord::dispatch() {
-	qDebug() << ">>>>> DISPATCH\n";
-
-	const QString nonce = QStringLiteral("%1:%2").arg(QString::number(nonceCounter_++), QString::number(QRandomGenerator64::global()->generate()));
+/*
+ * INVALID command - does nothing
+ * const QString nonce = QStringLiteral("%1:%2").arg(QString::number(nonceCounter_++), QString::number(QRandomGenerator64::global()->generate()));
 	QJsonObject message{
 		{"cmd",   "DISPATCH"},
 		{"args",  QJsonArray{}},
 		{"nonce", nonce}
 	};
+	sendMessage(message);*/
 }
 
 QString operator +(QDiscord::CommandType ct) {
