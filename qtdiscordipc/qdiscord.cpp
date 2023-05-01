@@ -70,7 +70,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 	const bool r = [&]() {
 		if(clientID.isEmpty() || clientSecret.isEmpty()) {
 			qDebug() << "Missing client ID or secret";
-			connectionError_ = "E0 NO CREDENTIALS";
+			connectionError_ = "ERR 0";
 			return false;
 		}
 
@@ -84,7 +84,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 		}
 		if(socket_.state() != QLocalSocket::ConnectedState) {
 			qDebug() << "Connection failed";
-			connectionError_ = "E1 NO DISCORD";
+			connectionError_ = "ERR 1";
 			return false;
 		}
 
@@ -102,7 +102,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 			if(msg.json["cmd"] != "DISPATCH") {
 				qWarning() << "QDiscord - unexpected message (expected DISPATCH)" << msg.json["cmd"];
-				connectionError_ = "E2 WRONG CREDENTIALS";
+				connectionError_ = "ERR 2";
 				return false;
 			}
 
@@ -157,7 +157,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 				saveOauthData();
 			}
 			else {
-				connectionError_ = "E3 NETWORK ERR";
+				connectionError_ = "ERR 3";
 				qWarning() << "QDiscord Network error (refresh)" << r->errorString();
 			}
 		}
@@ -199,7 +199,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 				const QDiscordMessage msg = readMessage();
 				if(msg.json["cmd"] != "AUTHORIZE" || msg.json["evt"] == "ERROR") {
-					connectionError_ = "E4 ACCOUNT MISMATCH";
+					connectionError_ = "ERR 4";
 					qWarning() << "AUTHORIZE ERROR" << msg.json;
 					return false;
 				}
@@ -232,7 +232,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 				r->deleteLater();
 
 				if(r->error() != QNetworkReply::NoError) {
-					connectionError_ = "E5 NETWORK ERR";
+					connectionError_ = "ERR 5";
 					qWarning() << "QDiscord Network error" << r->errorString();
 					return false;
 				}
@@ -241,7 +241,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 			}
 
 			if(oauthData["access_token"].toString().isEmpty()) {
-				connectionError_ = "E6 TOKEN PROBLEM";
+				connectionError_ = "ERR 6";
 				qWarning() << "QDiscord failed to obtain access token";
 				return false;
 			}
@@ -261,7 +261,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 			const QDiscordMessage msg = readMessage();
 			if(msg.json["cmd"] != "AUTHENTICATE" || msg.json["evt"] == "ERROR") {
-				connectionError_ = "ERROR 007";
+				connectionError_ = "ERR 7";
 				qWarning() << "AUTHENTICATE ERROR" << msg.json;
 				return false;
 			}
