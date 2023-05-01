@@ -100,6 +100,13 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 			const QDiscordMessage msg = readMessage();
 
+			if(msg.json.isEmpty()) {
+				qWarning() << "QDiscord - empty response" << msg.json;
+				connectionError_ = "ERR 8";
+				return false;
+			}
+
+
 			if(msg.json["cmd"] != "DISPATCH") {
 				qWarning() << "QDiscord - unexpected message (expected DISPATCH)" << msg.json["cmd"];
 				connectionError_ = "ERR 2";
@@ -336,6 +343,7 @@ QImage QDiscord::getUserAvatar(const QString &userId, const QString &avatarId) {
 QDiscordMessage QDiscord::readMessage() {
 	const QByteArray headerBA = blockingReadBytes(sizeof(MessageHeader));
 	if(headerBA.isNull()) {
+		qDebug() << "Empty json message";
 		return {};
 	}
 
