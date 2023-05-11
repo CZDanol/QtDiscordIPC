@@ -54,9 +54,6 @@ QDiscord::QDiscord() {
 		if(socket_.bytesAvailable())
 			qDebug() << "ASSERTION FAILED: bytes still available after read and process messages";
 	});
-
-	dispatchTimer_.setInterval(1000);
-	dispatchTimer_.callOnTimeout(this, &QDiscord::dispatch);
 }
 
 QDiscord::~QDiscord() {
@@ -285,7 +282,6 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
 	else {
 		isConnected_ = true;
-		dispatchTimer_.start();
 		connectionError_.clear();
 		emit connected();
 	}
@@ -298,7 +294,6 @@ void QDiscord::disconnect() {
 	const bool wasConnected = isConnected_;
 
 	socket_.disconnectFromServer();
-	dispatchTimer_.stop();
 	isConnected_ = false;
 	userID_.clear();
 
@@ -404,18 +399,6 @@ QByteArray QDiscord::blockingReadBytes(int bytes) {
 void QDiscord::readAndProcessMessages() {
 	while(socket_.bytesAvailable())
 		processMessage(readMessage());
-}
-
-void QDiscord::dispatch() {
-/*
- * INVALID command - does nothing
- * const QString nonce = QStringLiteral("%1:%2").arg(QString::number(nonceCounter_++), QString::number(QRandomGenerator64::global()->generate()));
-	QJsonObject message{
-		{"cmd",   "DISPATCH"},
-		{"args",  QJsonArray{}},
-		{"nonce", nonce}
-	};
-	sendMessage(message);*/
 }
 
 QString operator +(QDiscord::CommandType ct) {
