@@ -73,6 +73,7 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
 
         // start connecting
         for(int i = 0; i < 10; i++) {
+            socket_.disconnectFromServer();
             socket_.connectToServer("discord-ipc-" + QString::number(i));
             qDebug() << "Trying to connect to Discord (" << i << ")";
 
@@ -85,30 +86,30 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
             return false;
         }
 
-            qDebug() << "Connected";
+        qDebug() << "Connected";
         static const QStringList scopes{"rpc", "identify"};
 
-            // Handshake and dispatch Receive DISPATCH
-            {
-                sendMessage(QJsonObject{
-                                        {"v",         1},
-                                        {"client_id", clientID},
-                                        }, 0);
+        // Handshake and dispatch Receive DISPATCH
+        {
+            sendMessage(QJsonObject{
+                                    {"v",         1},
+                                    {"client_id", clientID},
+                                    }, 0);
 
             const QDiscordMessage msg = readMessage();
 
-                if(msg.json.isEmpty()) {
-                    qWarning() << "QDiscord - empty response" << msg.json;
-                    connectionError_ = "ERR 8";
+            if(msg.json.isEmpty()) {
+                qWarning() << "QDiscord - empty response" << msg.json;
+                connectionError_ = "ERR 8";
                 return false;
-                }
+            }
 
 
-                if(msg.json["cmd"] != "DISPATCH") {
-                    qWarning() << "QDiscord - unexpected message (expected DISPATCH)" << msg.json["cmd"];
-                    connectionError_ = "ERR 2";
-                    return false;
-                }
+            if(msg.json["cmd"] != "DISPATCH") {
+                qWarning() << "QDiscord - unexpected message (expected DISPATCH)" << msg.json["cmd"];
+                connectionError_ = "ERR 2";
+                return false;
+            }
 
             cdn_ = msg.data["config"]["cdn_host"].toString();
         }
@@ -136,12 +137,12 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
             QNetworkAccessManager nm;
             QNetworkRequest req;
             const QUrlQuery q{
-                {"client_id",     clientID},
-                {"client_secret", clientSecret},
-                {"refresh_token", oauthData["refresh_token"].toString()},
-                {"scope",         scopes.join(' ')},
-                {"grant_type",    "refresh_token"},
-            };
+                              {"client_id",     clientID},
+                              {"client_secret", clientSecret},
+                              {"refresh_token", oauthData["refresh_token"].toString()},
+                              {"scope",         scopes.join(' ')},
+                              {"grant_type",    "refresh_token"},
+                              };
             QUrl url("https://discord.com/api/oauth2/token");
             req.setUrl(url);
             req.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
@@ -169,12 +170,12 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
         // Authenticate from stored token
         if(!oauthData["access_token"].isNull()) {
             sendMessage(QJsonObject{
-                {"cmd",   +CommandType::authenticate},
-                {"nonce", "auth_0"},
-                {"args",  QJsonObject{
-                    {"access_token", oauthData["access_token"].toString()}
-                }},
-            });
+                                    {"cmd",   +CommandType::authenticate},
+                                    {"nonce", "auth_0"},
+                                    {"args",  QJsonObject{
+                                                 {"access_token", oauthData["access_token"].toString()}
+                                             }},
+                                    });
 
             const QDiscordMessage msg = readMessage();
             if(msg.json["cmd"] == "AUTHENTICATE" && msg.json["evt"] != "ERROR") {
@@ -193,13 +194,13 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
             QString authCode;
             {
                 sendMessage(QJsonObject{
-                    {"cmd",   +CommandType::authorize},
-                    {"nonce", "auth_1"},
-                    {"args",  QJsonObject{
-                        {"client_id", clientID},
-                        {"scopes",    QJsonArray::fromStringList(scopes)}
-                    }},
-                });
+                                        {"cmd",   +CommandType::authorize},
+                                        {"nonce", "auth_1"},
+                                        {"args",  QJsonObject{
+                                                     {"client_id", clientID},
+                                                     {"scopes",    QJsonArray::fromStringList(scopes)}
+                                                 }},
+                                        });
 
                 const QDiscordMessage msg = readMessage();
                 if(msg.json["cmd"] != "AUTHORIZE" || msg.json["evt"] == "ERROR") {
@@ -216,12 +217,12 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
                 QNetworkAccessManager nm;
                 QNetworkRequest req;
                 const QUrlQuery q{
-                    {"client_id",     clientID},
-                    {"client_secret", clientSecret},
-                    {"code",          authCode},
-                    {"scope",         scopes.join(' ')},
-                    {"grant_type",    "authorization_code"},
-                };
+                                  {"client_id",     clientID},
+                                  {"client_secret", clientSecret},
+                                  {"code",          authCode},
+                                  {"scope",         scopes.join(' ')},
+                                  {"grant_type",    "authorization_code"},
+                                  };
                 QUrl url("https://discord.com/api/oauth2/token");
                 req.setUrl(url);
                 req.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
@@ -256,12 +257,12 @@ bool QDiscord::connect(const QString &clientID, const QString &clientSecret) {
         // Authenticate
         {
             sendMessage(QJsonObject{
-                {"cmd",   "AUTHENTICATE"},
-                {"nonce", "auth_2"},
-                {"args",  QJsonObject{
-                    {"access_token", oauthData["access_token"].toString()}
-                }},
-            });
+                                    {"cmd",   "AUTHENTICATE"},
+                                    {"nonce", "auth_2"},
+                                    {"args",  QJsonObject{
+                                                 {"access_token", oauthData["access_token"].toString()}
+                                             }},
+                                    });
 
             const QDiscordMessage msg = readMessage();
             if(msg.json["cmd"] != "AUTHENTICATE" || msg.json["evt"] == "ERROR") {
